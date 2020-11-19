@@ -22,14 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "arm_math.h"
-#include <math.h>
-#include "stm32l475e_iot01_qspi.h"
-#include "stdio.h"
 #include "string.h"
+#include "stdio.h"
 #include "stm32l475e_iot01.h"
 #include "stm32l475e_iot01_accelero.h"
-#include "time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,10 +55,7 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-int16_t accelero_XYZ[3];
-char accelero_XYZ_buffer[50];
-int16_t max_accelero_XYZ[3];
-char max_accelero_XYZ_buffer[50];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -118,14 +111,10 @@ int main(void)
   MX_I2C2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
-  /* Initialize I2C sensors */
-  BSP_ACCELERO_Init();
-  /* Set low power mode for accelerometer and magnetometer */
-  BSP_ACCELERO_LowPower(1);
-
-  memset(max_accelero_XYZ, 0, sizeof(max_accelero_XYZ));
-
+  int16_t accelero_XYZ[3];
+  char accelero_XYZ_buffer[50];
+  int16_t max_accelero_XYZ[3];
+  char max_accelero_XYZ_buffer[50];
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -149,46 +138,41 @@ int main(void)
 		  HAL_Delay(50); //20Hz
 	  }
 	  //In every 0.2 Hz
-	  /*Convert in terms of g*/
-	  max_accelero_XYZ[0] = max_accelero_XYZ[0]/9.81;
-	  max_accelero_XYZ[1] = max_accelero_XYZ[1]/9.81;
-	  max_accelero_XYZ[2] = max_accelero_XYZ[2]/9.81;
-	  /*Debugging if the peak values are correct in terms of g*/
-	  sprintf(max_accelero_XYZ_buffer, "Peak Acceleration: X: %d g Y:%d g Z:%d g", max_accelero_XYZ[0],max_accelero_XYZ[1],max_accelero_XYZ[2]);
-	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,50,30000);
-	  if(MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]) > 3){
-		int max_val = MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]) > 3);
-		int magnitude = 0;
-		switch(max_val){
-		case (3<=max_val<3.9):
-			magnitude = 4;
-		   	break;
-		case (3.9<=max_val<9.2):
-			magnitude = 5;
-		    break;
-		case (9.2<=max_val<18):
-			magnitude = 6;
-		    break;
-		case (18<=max_val<34):
-			magnitude = 7;
-		    break;
-		case (34<=max_val<65):
-			magnitude = 8;
-			break;
-		case (65<=max_val<124):
-			magnitude = 9;
-			break;
-		case (max_val >= 124):
-			magnitude = 10;
-			break;
-	  }
+	 	  /*Convert in terms of g*/
+	 	  max_accelero_XYZ[0] = max_accelero_XYZ[0]/9.81;
+	 	  max_accelero_XYZ[1] = max_accelero_XYZ[1]/9.81;
+	 	  max_accelero_XYZ[2] = max_accelero_XYZ[2]/9.81;
+	 	  /*Debugging if the peak values are correct in terms of g*/
+	 	  sprintf(max_accelero_XYZ_buffer, "Peak Acceleration: X: %d g Y:%d g Z:%d g", max_accelero_XYZ[0],max_accelero_XYZ[1],max_accelero_XYZ[2]);
+	 	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,50,30000);
+	 	  if(MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]) > 3){
+	 		int max_val = MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]);
+	 		int magnitude = 0;
 
-	//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
-	if(magnitude>5){
-		//TODO: We should trigger speaker
-	}
-	memset(max_accelero_XYZ, 0, sizeof(max_accelero_XYZ));
-	magnitude = 0;
+	 		if (3<=max_val && max_val<3.9){
+	 			magnitude = 4;
+	 		}else if(3.9<=max_val && max_val<9.2){
+	 			magnitude = 5;
+	 		}else if (9.2<=max_val && max_val<18) {
+	 			magnitude = 6;
+	 		}else if (18<=max_val && max_val<34){
+	 			magnitude = 7;
+	 		}else if (34<=max_val && max_val<65){
+	 			magnitude = 8;
+	 		}else if (65<=max_val && max_val<124){
+	 			magnitude = 9;
+	 		}else if (max_val >= 124){
+	 			magnitude = 10;
+	 		}
+
+	 		//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
+	 		if(magnitude>5){
+	 			//TODO: We should trigger speaker
+	 		}
+	 		memset(max_accelero_XYZ, 0, sizeof(max_accelero_XYZ));
+	 		magnitude = 0;
+	 	  }
+
   }
   /* USER CODE END 3 */
 }
