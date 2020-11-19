@@ -26,6 +26,7 @@
 #include "stdio.h"
 #include "stm32l475e_iot01.h"
 #include "stm32l475e_iot01_accelero.h"
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -111,10 +112,19 @@ int main(void)
   MX_I2C2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  /* Initialize I2C sensors */
+  BSP_ACCELERO_Init();
+
+  /* Set low power mode for accelerometer and magnetometer */
+  BSP_ACCELERO_LowPower(1);
+
   int16_t accelero_XYZ[3];
-  char accelero_XYZ_buffer[50];
-  int16_t max_accelero_XYZ[3];
-  char max_accelero_XYZ_buffer[50];
+  char accelero_XYZ_buffer[100];
+  int16_t prev_accelero_XYZ[3];
+  char max_accelero_XYZ_buffer[100];
+  BSP_ACCELERO_AccGetXYZ(prev_accelero_XYZ);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -126,15 +136,18 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  /*Read Acceleration Value*/
-	  for(int i=0; i<100; i++){
-		  BSP_ACCELERO_AccGetXYZ(accelero_XYZ);
+
+
+	  BSP_ACCELERO_AccGetXYZ(accelero_XYZ);
+	  (accelero_XYZ[0]*)-prev_accelero_XYZ[0]
+	  if()
 		  /* Check if it is peak value */
 		  if(accelero_XYZ[0] > max_accelero_XYZ[0] ) max_accelero_XYZ[0] = accelero_XYZ[0];
 		  if(accelero_XYZ[1] > max_accelero_XYZ[1] ) max_accelero_XYZ[1] = accelero_XYZ[1];
 		  if(accelero_XYZ[2] > max_accelero_XYZ[2] ) max_accelero_XYZ[2] = accelero_XYZ[2];
 		  /*Debugging Purposes*/
 		  sprintf(accelero_XYZ_buffer, "Acceleration: X:%d Y:%d Z:%d", accelero_XYZ[0],accelero_XYZ[1],accelero_XYZ[2]);
-		  HAL_UART_Transmit(&huart1,accelero_XYZ_buffer,50,30000);
+		  HAL_UART_Transmit(&huart1,accelero_XYZ_buffer,100,30000);
 		  HAL_Delay(50); //20Hz
 	  }
 	  //In every 0.2 Hz
@@ -144,7 +157,7 @@ int main(void)
 	 	  max_accelero_XYZ[2] = max_accelero_XYZ[2]/9.81;
 	 	  /*Debugging if the peak values are correct in terms of g*/
 	 	  sprintf(max_accelero_XYZ_buffer, "Peak Acceleration: X: %d g Y:%d g Z:%d g", max_accelero_XYZ[0],max_accelero_XYZ[1],max_accelero_XYZ[2]);
-	 	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,50,30000);
+	 	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,100,30000);
 	 	  if(MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]) > 3){
 	 		int max_val = MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]);
 	 		int magnitude = 0;
