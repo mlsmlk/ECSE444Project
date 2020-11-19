@@ -27,6 +27,7 @@
 #include "stm32l475e_iot01.h"
 #include "stm32l475e_iot01_accelero.h"
 #include "arm_math.h"
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -119,9 +120,9 @@ int main(void)
   /* Set low power mode for accelerometer and magnetometer */
   BSP_ACCELERO_LowPower(1);
 
-  int16_t accelero_XYZ[3];
+  uint16_t accelero_XYZ[3];
   char accelero_XYZ_buffer[100];
-  int16_t prev_accelero_XYZ[3];
+  uint16_t prev_accelero_XYZ[3];
   char max_accelero_XYZ_buffer[100];
   BSP_ACCELERO_AccGetXYZ(prev_accelero_XYZ);
 
@@ -139,52 +140,58 @@ int main(void)
 
 
 	  BSP_ACCELERO_AccGetXYZ(accelero_XYZ);
-	  (accelero_XYZ[0]*)-prev_accelero_XYZ[0]
-	  if()
-		  /* Check if it is peak value */
-		  if(accelero_XYZ[0] > max_accelero_XYZ[0] ) max_accelero_XYZ[0] = accelero_XYZ[0];
-		  if(accelero_XYZ[1] > max_accelero_XYZ[1] ) max_accelero_XYZ[1] = accelero_XYZ[1];
-		  if(accelero_XYZ[2] > max_accelero_XYZ[2] ) max_accelero_XYZ[2] = accelero_XYZ[2];
-		  /*Debugging Purposes*/
-		  sprintf(accelero_XYZ_buffer, "Acceleration: X:%d Y:%d Z:%d", accelero_XYZ[0],accelero_XYZ[1],accelero_XYZ[2]);
-		  HAL_UART_Transmit(&huart1,accelero_XYZ_buffer,100,30000);
-		  HAL_Delay(50); //20Hz
-	  }
-	  //In every 0.2 Hz
-	 	  /*Convert in terms of g*/
-	 	  max_accelero_XYZ[0] = max_accelero_XYZ[0]/9.81;
-	 	  max_accelero_XYZ[1] = max_accelero_XYZ[1]/9.81;
-	 	  max_accelero_XYZ[2] = max_accelero_XYZ[2]/9.81;
-	 	  /*Debugging if the peak values are correct in terms of g*/
-	 	  sprintf(max_accelero_XYZ_buffer, "Peak Acceleration: X: %d g Y:%d g Z:%d g", max_accelero_XYZ[0],max_accelero_XYZ[1],max_accelero_XYZ[2]);
-	 	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,100,30000);
-	 	  if(MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]) > 3){
-	 		int max_val = MAX(MAX(max_accelero_XYZ[0], max_accelero_XYZ[1]), max_accelero_XYZ[2]);
-	 		int magnitude = 0;
 
-	 		if (3<=max_val && max_val<3.9){
-	 			magnitude = 4;
-	 		}else if(3.9<=max_val && max_val<9.2){
-	 			magnitude = 5;
-	 		}else if (9.2<=max_val && max_val<18) {
-	 			magnitude = 6;
-	 		}else if (18<=max_val && max_val<34){
-	 			magnitude = 7;
-	 		}else if (34<=max_val && max_val<65){
-	 			magnitude = 8;
-	 		}else if (65<=max_val && max_val<124){
-	 			magnitude = 9;
-	 		}else if (max_val >= 124){
-	 			magnitude = 10;
-	 		}
+	  //Cartesian Distance
+	  double x = pow(accelero_XYZ[0]-prev_accelero_XYZ[0],2);
+	  double y = pow(accelero_XYZ[1]-prev_accelero_XYZ[1],2);
+	  double z = pow(accelero_XYZ[2]-prev_accelero_XYZ[2],2);
+	  double sum = x+y+z;
+	  double dist = sqrt(sum);
 
-	 		//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
-	 		if(magnitude>5){
-	 			//TODO: We should trigger speaker
-	 		}
-	 		memset(max_accelero_XYZ, 0, sizeof(max_accelero_XYZ));
+	  //Update previous point
+	  prev_accelero_XYZ[0] = accelero_XYZ[0];
+	  prev_accelero_XYZ[1] = accelero_XYZ[1];
+	  prev_accelero_XYZ[2] = accelero_XYZ[2];
+
+	  /*Debugging Purposes*/
+	  sprintf(accelero_XYZ_buffer, "Acceleration: X:%d Y:%d Z:%d",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
+	  HAL_UART_Transmit(&huart1,accelero_XYZ_buffer,100,30000);
+
+
+	  /*Convert in terms of g*/
+	  double dist_g = dist/9.81;
+
+	  /*Debugging if the peak values are correct in terms of g*/
+	  sprintf(max_accelero_XYZ_buffer, "Distance in X: %d g", (int) dist);
+	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,100,30000);
+
+	  if(dist_g > 3){
+
+		int magnitude = 0;
+
+		if (3<=dist_g && dist_g<3.9){
+			magnitude = 4;
+		}else if(3.9<=dist_g && dist_g<9.2){
+			magnitude = 5;
+		}else if (9.2<=dist_g && dist_g<18) {
+			magnitude = 6;
+		}else if (18<=dist_g && dist_g<34){
+			magnitude = 7;
+		}else if (34<=dist_g && dist_g<65){
+			magnitude = 8;
+		}else if (65<=dist_g && dist_g<124){
+			magnitude = 9;
+		}else if (dist_g >= 124){
+			magnitude = 10;
+		}
+
+		//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
+		if(magnitude>5){
+			//TODO: We should trigger speaker
+		}
 	 		magnitude = 0;
-	 	  }
+	  }
+	  HAL_Delay(50); //20Hz
 
   }
   /* USER CODE END 3 */
