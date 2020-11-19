@@ -137,8 +137,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  /*Read Acceleration Value*/
-
-
 	  BSP_ACCELERO_AccGetXYZ(accelero_XYZ);
 
 	  //Cartesian Distance
@@ -165,23 +163,23 @@ int main(void)
 	  sprintf(max_accelero_XYZ_buffer, "Distance in X: %d g", (int) dist);
 	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,100,30000);
 
-	  if(dist_g > 3){
+	  if(dist_g > 30){
 
 		int magnitude = 0;
 
-		if (3<=dist_g && dist_g<3.9){
+		if (30<=dist_g && dist_g<39){
 			magnitude = 4;
-		}else if(3.9<=dist_g && dist_g<9.2){
+		}else if(39<=dist_g && dist_g<92){
 			magnitude = 5;
-		}else if (9.2<=dist_g && dist_g<18) {
+		}else if (92<=dist_g && dist_g<180) {
 			magnitude = 6;
-		}else if (18<=dist_g && dist_g<34){
+		}else if (180<=dist_g && dist_g<340){
 			magnitude = 7;
-		}else if (34<=dist_g && dist_g<65){
+		}else if (340<=dist_g && dist_g<650){
 			magnitude = 8;
-		}else if (65<=dist_g && dist_g<124){
+		}else if (650<=dist_g && dist_g<1240){
 			magnitude = 9;
-		}else if (dist_g >= 124){
+		}else if (dist_g >= 1240){
 			magnitude = 10;
 		}
 

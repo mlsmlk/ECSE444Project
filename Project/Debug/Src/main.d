@@ -32,11 +32,10 @@ Src/main.o: ../Src/main.c ../Inc/main.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h \
- ../Inc/arm_math.h ../Drivers/CMSIS/Include/cmsis_compiler.h \
- ../Inc/stm32l475e_iot01_qspi.h ../Inc/mx25r6435f.h \
  ../Inc/stm32l475e_iot01.h ../Inc/stm32l475e_iot01_accelero.h \
  ../Inc/stm32l475e_iot01.h ../Inc/lsm6dsl.h ../Inc/accelero.h \
- ../Inc/gyro.h
+ ../Inc/gyro.h ../Inc/arm_math.h \
+ ../Drivers/CMSIS/Include/cmsis_compiler.h
 
 ../Inc/main.h:
 
@@ -106,14 +105,6 @@ Src/main.o: ../Src/main.c ../Inc/main.h \
 
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h:
 
-../Inc/arm_math.h:
-
-../Drivers/CMSIS/Include/cmsis_compiler.h:
-
-../Inc/stm32l475e_iot01_qspi.h:
-
-../Inc/mx25r6435f.h:
-
 ../Inc/stm32l475e_iot01.h:
 
 ../Inc/stm32l475e_iot01_accelero.h:
@@ -125,3 +116,7 @@ Src/main.o: ../Src/main.c ../Inc/main.h \
 ../Inc/accelero.h:
 
 ../Inc/gyro.h:
+
+../Inc/arm_math.h:
+
+../Drivers/CMSIS/Include/cmsis_compiler.h:
