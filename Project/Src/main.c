@@ -22,17 +22,18 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "string.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
+
+#define ARM_MATH_CM4
+#include "arm_math.h"
 #include "stm32l475e_iot01.h"
 #include "stm32l475e_iot01_accelero.h"
-#include "arm_math.h"
-#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define MAX(a,b) ((a) < (b) ? (a) : (b))
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -152,34 +153,34 @@ int main(void)
 	  prev_accelero_XYZ[2] = accelero_XYZ[2];
 
 	  /*Debugging Purposes*/
-	  sprintf(accelero_XYZ_buffer, "Acceleration: X:%d Y:%d Z:%d",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
-	  HAL_UART_Transmit(&huart1,accelero_XYZ_buffer,100,30000);
+	  sprintf(accelero_XYZ_buffer, "\nAcceleration: X:%d Y:%d Z:%d\n",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
+	  HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
 
 
 	  /*Convert in terms of g*/
 	  double dist_g = dist/9.81;
 
 	  /*Debugging if the peak values are correct in terms of g*/
-	  sprintf(max_accelero_XYZ_buffer, "Distance in X: %d g", (int) dist);
-	  HAL_UART_Transmit(&huart1,max_accelero_XYZ_buffer,100,30000);
+	  sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
+	  HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
 
-	  if(dist_g > 30){
+	  if(dist_g > 300){
 
 		int magnitude = 0;
 
-		if (30<=dist_g && dist_g<39){
+		if (300 <= dist_g && dist_g < 39){
 			magnitude = 4;
-		}else if(39<=dist_g && dist_g<92){
+		} else if(390 <= dist_g && dist_g < 92){
 			magnitude = 5;
-		}else if (92<=dist_g && dist_g<180) {
+		} else if (92 <= dist_g && dist_g < 180) {
 			magnitude = 6;
-		}else if (180<=dist_g && dist_g<340){
+		} else if (180 <= dist_g && dist_g < 340){
 			magnitude = 7;
-		}else if (340<=dist_g && dist_g<650){
+		} else if (340 <= dist_g && dist_g < 650){
 			magnitude = 8;
-		}else if (650<=dist_g && dist_g<1240){
+		} else if (650 <= dist_g && dist_g < 1240){
 			magnitude = 9;
-		}else if (dist_g >= 1240){
+		} else if (dist_g >= 1240){
 			magnitude = 10;
 		}
 
