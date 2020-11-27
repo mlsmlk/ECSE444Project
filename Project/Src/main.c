@@ -121,9 +121,9 @@ int main(void)
   /* Set low power mode for accelerometer and magnetometer */
   BSP_ACCELERO_LowPower(1);
 
-  uint16_t accelero_XYZ[3];
+  int16_t accelero_XYZ[3];
   char accelero_XYZ_buffer[100];
-  uint16_t prev_accelero_XYZ[3];
+  int16_t prev_accelero_XYZ[3];
   char max_accelero_XYZ_buffer[100];
   BSP_ACCELERO_AccGetXYZ(prev_accelero_XYZ);
 
@@ -164,13 +164,13 @@ int main(void)
 	  sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
 	  HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
 
-	  if(dist_g > 300){
+	  if(dist_g > 30){
 
 		int magnitude = 0;
 
-		if (300 <= dist_g && dist_g < 39){
+		if (30 <= dist_g && dist_g < 39){
 			magnitude = 4;
-		} else if(390 <= dist_g && dist_g < 92){
+		} else if(39 <= dist_g && dist_g < 92){
 			magnitude = 5;
 		} else if (92 <= dist_g && dist_g < 180) {
 			magnitude = 6;
@@ -186,9 +186,18 @@ int main(void)
 
 		//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
 		if(magnitude>5){
-			//TODO: We should trigger speaker
+			//Trigger speaker
+			uint8_t sine_1[32];
+			float radian_1 = 0;
+			for (int i = 0; i < 32; i++) {
+				  sine_1[i] = 100 * arm_sin_f32(radian_1) + 100;
+				  radian_1 += PI/2;
+		   }
+			  HAL_TIM_Base_Start(&htim2);
+			  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) sine_1, 32, DAC_ALIGN_8B_R);
 		}
 	 		magnitude = 0;
+
 	  }
 	  HAL_Delay(50); //20Hz
 
@@ -499,10 +508,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+	if (GPIO_Pin == GPIO_PIN_13) {
+		HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+	}
+}
 /* USER CODE END 4 */
 
 /**
