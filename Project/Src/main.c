@@ -30,6 +30,7 @@
 #include "arm_math.h"
 #include "stm32l475e_iot01.h"
 #include "stm32l475e_iot01_accelero.h"
+#include "stm32l475e_iot01_qspi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,6 +39,15 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define BLOCK_SIZE 65536
+int blockMemoryIndex = 10;
+int blockNum = 0;
+int filledOnce = 0;
+int eraseMode = 0;
+int beginUART = 0;
+int readblockMemoryIndex = 10;
+int readBlockNum = 0;
+int blocksRead = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -117,9 +127,24 @@ int main(void)
 
   /* Initialize I2C sensors */
   BSP_ACCELERO_Init();
-
+//  BSP_QSPI_Erase_Chip(); //erase chip for first run
+  for(int i =0; i <= 36; i++){
+	  BSP_QSPI_Erase_Block(i*BLOCK_SIZE); //erase the first block that will hold the sound
+  }
   /* Set low power mode for accelerometer and magnetometer */
   BSP_ACCELERO_LowPower(1);
+
+  /* Initialize QSPI */
+  BSP_QSPI_Init();
+
+  //store the sound wave in QSPI
+  uint8_t sineWave[32]; //TODO: ask team if this is the wave to store
+  float radian_1 = 0;
+  for (int i = 0; i < 32; i++) {
+	  sineWave[i] = 100 * arm_sin_f32(radian_1) + 100;
+	  radian_1 += PI/2;
+  }
+  BSP_QSPI_Write(sineWave, 0, 32); //write the sound to the block
 
   int16_t accelero_XYZ[3];
   char accelero_XYZ_buffer[100];
@@ -137,6 +162,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+	  printf("test\n");
+
 	  /*Read Acceleration Value*/
 	  BSP_ACCELERO_AccGetXYZ(accelero_XYZ);
 
@@ -152,6 +179,11 @@ int main(void)
 	  prev_accelero_XYZ[1] = accelero_XYZ[1];
 	  prev_accelero_XYZ[2] = accelero_XYZ[2];
 
+	  int x1 = accelero_XYZ[0];
+	  int x2 = accelero_XYZ[1];
+	  int x3 = accelero_XYZ[2];
+
+
 	  /*Debugging Purposes*/
 	  sprintf(accelero_XYZ_buffer, "\nAcceleration: X:%d Y:%d Z:%d\n",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
 	  HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
@@ -164,7 +196,7 @@ int main(void)
 	  sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
 	  HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
 
-	  if(dist_g > 30){
+	  if(dist_g > 300) {
 
 		int magnitude = 0;
 
@@ -184,23 +216,113 @@ int main(void)
 			magnitude = 10;
 		}
 
+
 		//TODO: We should store in flash something like : PGA: X: %d g Y:%d g Z:%d g, Mag:%d, Time:time(NULL)
+
+
 		if(magnitude>5){
-			//Trigger speaker
+
+			//write acceleration values and magnitude to respective blocks
+			BSP_QSPI_Write(accelero_XYZ[0], (blockNum+1)*BLOCK_SIZE + blockMemoryIndex, 2);
+			BSP_QSPI_Write(accelero_XYZ[1], (blockNum+2)*BLOCK_SIZE + blockMemoryIndex, 2);
+			BSP_QSPI_Write(accelero_XYZ[2], (blockNum+3)*BLOCK_SIZE + blockMemoryIndex, 2);
+			BSP_QSPI_Write(magnitude, (blockNum+4)*BLOCK_SIZE + blockMemoryIndex, 2);
+
+
+			blockMemoryIndex += 2;
+			if(blockMemoryIndex >= BLOCK_SIZE-8){ //last write in the block at address BlockSize-10
+				blockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
+				blockNum += 4;
+			}
+
+			if(blockNum > 32){ //provides 8 blocks of memory for each x y z and
+				blockNum = 0;
+				filledOnce = 1;
+				eraseMode = 1;
+			}
+
+			if(filledOnce == 1 && eraseMode == 1){
+				//erase the ones of the next blockNum
+				BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)); //erase x block
+				BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +2)); //erase y block
+				BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +3)); //erase z block
+				BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +4)); //erase magnitude block
+
+			}
+
 			uint8_t sine_1[32];
-			float radian_1 = 0;
-			for (int i = 0; i < 32; i++) {
-				  sine_1[i] = 100 * arm_sin_f32(radian_1) + 100;
-				  radian_1 += PI/2;
-		   }
-			  HAL_TIM_Base_Start(&htim2);
-			  HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) sine_1, 32, DAC_ALIGN_8B_R);
+			BSP_QSPI_Read(sine_1, 0, 32); //get the soundwave stored in the first block of the QSPI
+			HAL_TIM_Base_Start(&htim2);
+			HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) sine_1, 32, DAC_ALIGN_8B_R);
 		}
-	 		magnitude = 0;
+		magnitude = 0;
 
-	  }
-	  HAL_Delay(50); //20Hz
 
+		//transmit if button pressed
+		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) != GPIO_PIN_SET){				//if button pressed
+			while(1){
+				if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
+					beginUART = 1;
+				}
+			}
+		}
+
+		while(beginUART) { //want to display the values in chronological order obtained
+			uint16_t spiX, spiY, spiZ, spiMag;
+
+			if(filledOnce == 1 && blocksRead == 0){ //if was filled at least once oldest value is the 4 blocks ahead of the ones being written
+				readBlockNum = blockNum +4;
+				if(readBlockNum > 32) readBlockNum = 0; //reset the number if we are at the last set of 4 blocks
+				readblockMemoryIndex = 10;
+			}
+
+			//read values
+			BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
+			BSP_QSPI_Read(&spiY, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
+			BSP_QSPI_Read(&spiZ, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
+			BSP_QSPI_Read(&spiMag, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
+
+			//print to uart
+			char uartTransmit[100];
+
+			sprintf(uartTransmit, "\nAcceleration: X:%d Y:%d Z:%d; Magnitude: %d\n",(int) spiX,(int) spiY,(int)spiZ, (int)spiMag);
+			HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
+
+			readblockMemoryIndex += 2;
+
+			if(readblockMemoryIndex >= BLOCK_SIZE-8){ //last write in the block at address BlockSize-10
+				readblockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
+				readBlockNum += 4;
+				blocksRead++;
+			}
+
+			if(blocksRead == 8){ //provides 8 blocks of memory for each x y z and
+				readBlockNum = 0;
+				char endStr[100];
+				sprintf(endStr, "\nDATA TRANSMISSION FROM QSPI COMPLETE\n");
+				HAL_UART_Transmit(&huart1, endStr, 100, 30000);
+				readblockMemoryIndex = 10;
+				readBlockNum = 0;
+				blocksRead = 0;
+				break;
+			}
+
+
+
+			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) != GPIO_PIN_SET){				//if button pressed stop transmission
+				while(1){
+					if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
+						beginUART = 0;
+						readblockMemoryIndex = 10; //reset the transmission values;
+						readBlockNum = 0;
+						blocksRead = 0;
+						break;
+					}
+				}
+			}
+
+		}
+		HAL_Delay(50); //20Hz
   }
   /* USER CODE END 3 */
 }
