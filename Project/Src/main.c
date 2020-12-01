@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define ARM_MATH_CM4
 #include "arm_math.h"
@@ -95,6 +97,9 @@ static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim);
+//test
+long getTime();
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -148,7 +153,9 @@ int main(void)
   BSP_QSPI_Init();
 
   for (int i = 0; i <= 12; i++) { //init by erasing the 12 blocks used (768kb)
-	  BSP_QSPI_Erase_Block(i*BLOCK_SIZE);
+	  if(BSP_QSPI_Erase_Block(i*BLOCK_SIZE) != QSPI_OK){
+		  Error_Handler();
+	  }
   }
   //store the sound wave in QSPI
   uint8_t sineWave[32]; //TODO: ask team if this is the wave to store
@@ -157,8 +164,11 @@ int main(void)
 	  sineWave[i] = 100 * arm_sin_f32(radian_1) + 100;
 	  radian_1 += PI/2;
   }
-  BSP_QSPI_Write(sineWave, 0, 32); //write the sound to the block
 
+  //write the sine wave to the first block in flash
+  if(BSP_QSPI_Write(sineWave, 0, 32) != QSPI_OK){
+ 		  Error_Handler();
+  }
   // read initial values
   BSP_ACCELERO_AccGetXYZ(prev_accelero_XYZ);
 
@@ -637,7 +647,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 			// first, sound the alarm
 			uint8_t sineWave[32];
-			BSP_QSPI_Read(sineWave, 0, 32); //get the soundwave stored in the first block of the QSPI
+			//get the soundwave stored in the first block of the QSPI
+			if(BSP_QSPI_Read(sineWave, 0, 32) != QSPI_OK){
+			 		  Error_Handler();
+			}
 			HAL_TIM_Base_Start(&htim2);
 			HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) sineWave, 32, DAC_ALIGN_8B_R);
 
@@ -667,14 +680,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 			int16_t accelZ = accelero_XYZ[2];
 
 
-
-			if(zeroMagCounter < 40) { // 2 seconds
+			if(zeroMagCounter < 60) {
 
 				//write acceleration values and magnitude to respective blocks
-				BSP_QSPI_Write(&accelX, (blockNum+1)*BLOCK_SIZE + blockMemoryIndex, 2);
-				BSP_QSPI_Write(&accelY, (blockNum+2)*BLOCK_SIZE + blockMemoryIndex, 2);
-				BSP_QSPI_Write(&accelZ, (blockNum+3)*BLOCK_SIZE + blockMemoryIndex, 2);
-				BSP_QSPI_Write(&magnitude, (blockNum+4)*BLOCK_SIZE + blockMemoryIndex, 2);
+				if(BSP_QSPI_Write(&accelX, (blockNum+1)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Write(&accelY, (blockNum+2)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Write(&accelZ, (blockNum+3)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Write(&magnitude, (blockNum+4)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+
 
 				blockMemoryIndex += 2; //+2 because we are counting the values as uint16 so need 2 bytes, (same for magnitude although uint_8t)
 
@@ -690,13 +711,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 				}
 
 				if (filledOnce == 1 && eraseMode == 1) {
-					//erase the ones of the next blockNum
-					BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)); //erase x block
-					BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +2)); //erase y block
-					BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +3)); //erase z block
-					BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +4)); //erase magnitude block
+					//erase the ones of the next blockNum which we will write the values to
+
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase x accels
+						Error_Handler();
+					}
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase y accels
+						Error_Handler();
+					}
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase z accels
+						Error_Handler();
+					}
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase magnitude
+						Error_Handler();
+					}
+
 				}
-			} else if(zeroMagCounter >= 40){
+			} else{ // 3 seconds of 0 magnitude means we stop writing accel values
 				HAL_TIM_Base_Stop_IT(&htim4);
 			}
 		}
@@ -714,10 +745,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 
 				//read values
-				BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
-				BSP_QSPI_Read(&spiY, (readBlockNum+2)*BLOCK_SIZE + readblockMemoryIndex, 2);
-				BSP_QSPI_Read(&spiZ, (readBlockNum+3)*BLOCK_SIZE + readblockMemoryIndex, 2);
-				BSP_QSPI_Read(&spiMag, (readBlockNum+4)*BLOCK_SIZE + readblockMemoryIndex, 2);
+				if(BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiX, (readBlockNum+2)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiX, (readBlockNum+3)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiX, (readBlockNum+4)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
 
 
 				float timeStamp = 0.05*readCount; //sample is 0.05 seconds difference between each read value
@@ -776,6 +815,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 		//
 	}
 }
+
+
+long getTime(){
+	long now = time(NULL);
+	return now;
+}
 /* USER CODE END 4 */
 
 /**
@@ -786,6 +831,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+	  HAL_GPIO_WritePin(LED_GPIO_Port, GPIO_PIN_14, GPIO_PIN_SET);
 
   /* USER CODE END Error_Handler_Debug */
 }
