@@ -716,13 +716,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase x accels
 						Error_Handler();
 					}
-					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase y accels
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +2)) != QSPI_OK){ //erase y accels
 						Error_Handler();
 					}
-					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase z accels
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +3)) != QSPI_OK){ //erase z accels
 						Error_Handler();
 					}
-					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase magnitude
+					if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +4)) != QSPI_OK){ //erase magnitude
 						Error_Handler();
 					}
 
@@ -748,13 +748,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 				if(BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
 					Error_Handler();
 				}
-				if(BSP_QSPI_Read(&spiX, (readBlockNum+2)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+				if(BSP_QSPI_Read(&spiY, (readBlockNum+2)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
 					Error_Handler();
 				}
-				if(BSP_QSPI_Read(&spiX, (readBlockNum+3)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+				if(BSP_QSPI_Read(&spiZ, (readBlockNum+3)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
 					Error_Handler();
 				}
-				if(BSP_QSPI_Read(&spiX, (readBlockNum+4)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+				if(BSP_QSPI_Read(&spiMag, (readBlockNum+4)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
 					Error_Handler();
 				}
 
