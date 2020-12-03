@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define ARM_MATH_CM4
 #include "arm_math.h"
@@ -48,6 +50,11 @@ int beginUART = 0;
 int readblockMemoryIndex = 10;
 int readBlockNum = 0;
 int blocksRead = 0;
+int qspiMode = 0; //0 for write, 1 for read
+int zeroMagCounter = 0;
+int prevMag = 0;
+int readCount = 0; //used to display the time
+int startQSPI = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -91,6 +98,8 @@ static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim);
+
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -142,23 +151,33 @@ int main(void)
   BSP_ACCELERO_LowPower(1);
   /* Initialize QSPI */
   BSP_QSPI_Init();
-  for (int i = 0; i <= 36; i++) {
-	  BSP_QSPI_Erase_Block(i*BLOCK_SIZE); //erase the first block that will hold the sound
+
+  for (int i = 0; i <= 12; i++) { //init by erasing the 13 blocks used (832 kb)
+	  if(BSP_QSPI_Erase_Block(i*BLOCK_SIZE) != QSPI_OK){
+		  Error_Handler();
+	  }
   }
+
   //store the sound wave in QSPI
-  uint8_t sineWave[32]; //TODO: ask team if this is the wave to store
+  uint8_t sineWave[32];
   float radian_1 = 0;
   for (int i = 0; i < 32; i++) {
 	  sineWave[i] = 100 * arm_sin_f32(radian_1) + 100;
 	  radian_1 += PI/2;
   }
-  BSP_QSPI_Write(sineWave, 0, 32); //write the sound to the block
+
+  //write the sine wave to the first block in flash
+  if(BSP_QSPI_Write(sineWave, 0, 32) != QSPI_OK){
+ 		  Error_Handler();
+  }
 
   // read initial values
   BSP_ACCELERO_AccGetXYZ(prev_accelero_XYZ);
 
   // start TIM3 for accelerometer reading
   HAL_TIM_Base_Start_IT(&htim3);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -167,70 +186,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	//transmit if button pressed
-//	if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) != GPIO_PIN_SET){				//if button pressed
-//		while(1) {
-//			if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-//				beginUART = 1;
-//			}
-//		}
-//	}
-//
-//	while(beginUART) { //want to display the values in chronological order obtained
-//		uint16_t spiX, spiY, spiZ, spiMag;
-//
-//		if(filledOnce == 1 && blocksRead == 0){ //if was filled at least once oldest value is the 4 blocks ahead of the ones being written
-//			readBlockNum = blockNum +4;
-//			if(readBlockNum > 32) readBlockNum = 0; //reset the number if we are at the last set of 4 blocks
-//			readblockMemoryIndex = 10;
-//		}
-//
-//		//read values
-//		BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
-//		BSP_QSPI_Read(&spiY, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
-//		BSP_QSPI_Read(&spiZ, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
-//		BSP_QSPI_Read(&spiMag, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2);
-//
-//		//print to uart
-//		char uartTransmit[100];
-//
-//		sprintf(uartTransmit, "\nAcceleration: X:%d Y:%d Z:%d; Magnitude: %d\n",(int) spiX,(int) spiY,(int)spiZ, (int)spiMag);
-//		HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
-//
-//		readblockMemoryIndex += 2;
-//
-//		if(readblockMemoryIndex >= BLOCK_SIZE-8){ //last write in the block at address BlockSize-10
-//			readblockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
-//			readBlockNum += 4;
-//			blocksRead++;
-//		}
-//
-//		if(blocksRead == 8){ //provides 8 blocks of memory for each x y z and
-//			readBlockNum = 0;
-//			char endStr[100];
-//			sprintf(endStr, "\nDATA TRANSMISSION FROM QSPI COMPLETE\n");
-//			HAL_UART_Transmit(&huart1, endStr, 100, 30000);
-//			readblockMemoryIndex = 10;
-//			readBlockNum = 0;
-//			blocksRead = 0;
-//			break;
-//		}
-//
-//
-//
-//		if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) != GPIO_PIN_SET){				//if button pressed stop transmission
-//			while(1){
-//				if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == GPIO_PIN_SET){
-//					beginUART = 0;
-//					readblockMemoryIndex = 10; //reset the transmission values;
-//					readBlockNum = 0;
-//					blocksRead = 0;
-//					break;
-//				}
-//			}
-//		}
-//
-//	}
+
   }
   /* USER CODE END 3 */
 }
@@ -655,14 +611,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 		/*Debugging Purposes*/
 		sprintf(accelero_XYZ_buffer, "\nAcceleration: X:%d Y:%d Z:%d\n",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
-		HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
+		if(qspiMode == 0) HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
 
 		/*Convert in terms of g*/
 		double dist_g = dist / 9.81;
 
 		/*Debugging if the peak values are correct in terms of g*/
-		sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
-		HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
+//		sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
+		sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) magnitude);
+		if(qspiMode == 0) HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
 
 		/*Classify the magnitude of the difference*/
 		if (dist_g > 30) {
@@ -684,56 +641,185 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 			}
 		}
 
+
+
 		if (magnitude > 5) {
 			// first, sound the alarm
 			uint8_t sineWave[32];
-			BSP_QSPI_Read(sineWave, 0, 32); //get the soundwave stored in the first block of the QSPI
+			//get the soundwave stored in the first block of the QSPI
+			if(BSP_QSPI_Read(sineWave, 0, 32) != QSPI_OK){
+			 		  Error_Handler();
+			}
 			HAL_TIM_Base_Start(&htim2);
 			HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) sineWave, 32, DAC_ALIGN_8B_R);
 
-			// then start the timer to constantly write the readings to flash storage
-			if (HAL_TIM_Base_GetState(&htim4) == HAL_TIM_STATE_READY) {
-				HAL_TIM_Base_Start_IT(&htim4);
-			}
+
+			//start saving to qspi
+			startQSPI = 1;
+
+		}
+
+		if(startQSPI == 1) {
+				if(magnitude == 0 && prevMag == 0){
+					zeroMagCounter++;
+				} else if(magnitude == 0 && prevMag != 0){
+					zeroMagCounter = 1;
+				} else if(magnitude != 0){
+					zeroMagCounter = 0;
+				}
+
+				prevMag = magnitude;
+
+				int16_t accelX = accelero_XYZ[0];
+				int16_t accelY = accelero_XYZ[1];
+				int16_t accelZ = accelero_XYZ[2];
+
+
+				if(zeroMagCounter < 60) {
+					int testval = magnitude;
+
+					//write acceleration values and magnitude to respective blocks
+					if(BSP_QSPI_Write(&accelX, (blockNum+1)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+						Error_Handler();
+					}
+					if(BSP_QSPI_Write(&accelY, (blockNum+2)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+						Error_Handler();
+					}
+					if(BSP_QSPI_Write(&accelZ, (blockNum+3)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+						Error_Handler();
+					}
+					if(BSP_QSPI_Write(&magnitude, (blockNum+4)*BLOCK_SIZE + blockMemoryIndex, 2) != QSPI_OK){
+						Error_Handler();
+					}
+
+
+					blockMemoryIndex += 2; //+2 because we are counting the values as uint16 so need 2 bytes, (same for magnitude although uint_8t)
+
+					if (blockMemoryIndex >= BLOCK_SIZE - 8) { //last write in the block at address BlockSize-10
+						blockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
+						blockNum += 4;
+					}
+
+					if (blockNum > 8) { //provides 3 blocks of memory for each x y z and
+						blockNum = 0;
+						filledOnce = 1;
+						eraseMode = 1;
+					}
+
+					if (filledOnce == 1 && eraseMode == 1) {
+						//erase the ones of the next blockNum which we will write the values to
+
+						if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)) != QSPI_OK){ //erase x accels
+							Error_Handler();
+						}
+						if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +2)) != QSPI_OK){ //erase y accels
+							Error_Handler();
+						}
+						if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +3)) != QSPI_OK){ //erase z accels
+							Error_Handler();
+						}
+						if(BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +4)) != QSPI_OK){ //erase magnitude
+							Error_Handler();
+						}
+
+					}
+				} else{ // 3 seconds of 0 magnitude means we stop writing accel values
+					startQSPI = 0;
+				}
+
+
+
 		}
 		magnitude = 0;
 	}
 	if (htim->Instance == TIM4) {
-		//write acceleration values and magnitude to respective blocks
-		BSP_QSPI_Write(accelero_XYZ[0], (blockNum+1)*BLOCK_SIZE + blockMemoryIndex, 2);
-		BSP_QSPI_Write(accelero_XYZ[1], (blockNum+2)*BLOCK_SIZE + blockMemoryIndex, 2);
-		BSP_QSPI_Write(accelero_XYZ[2], (blockNum+3)*BLOCK_SIZE + blockMemoryIndex, 2);
-		BSP_QSPI_Write(magnitude, (blockNum+4)*BLOCK_SIZE + blockMemoryIndex, 2);
-		// TODO: Please store a timestamp as well if you can since we cannot reacreate the timestamp
 
-		blockMemoryIndex += 2;
+				int16_t spiX, spiY, spiZ, spiMag;
 
-		if (blockMemoryIndex >= BLOCK_SIZE - 8) { //last write in the block at address BlockSize-10
-			blockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
-			blockNum += 4;
-		}
+				if(filledOnce == 1 && blocksRead == 0){ //if was filled at least once oldest value is the 4 blocks ahead of the ones being written
+					readBlockNum = blockNum + 4;
+					if(readBlockNum > 32) readBlockNum = 0; //reset the number if we are at the last set of 4 blocks
+					readblockMemoryIndex = 10;
+				}
 
-		if (blockNum > 32) { //provides 8 blocks of memory for each x y z and
-			blockNum = 0;
-			filledOnce = 1;
-			eraseMode = 1;
-		}
 
-		if (filledOnce == 1 && eraseMode == 1) {
-			//erase the ones of the next blockNum
-			BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +1)); //erase x block
-			BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +2)); //erase y block
-			BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +3)); //erase z block
-			BSP_QSPI_Erase_Block(BLOCK_SIZE*(blockNum +4)); //erase magnitude block
-		}
+
+
+				//read values
+				if(BSP_QSPI_Read(&spiX, (readBlockNum+1)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiY, (readBlockNum+2)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiZ, (readBlockNum+3)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+				if(BSP_QSPI_Read(&spiMag, (readBlockNum+4)*BLOCK_SIZE + readblockMemoryIndex, 2) != QSPI_OK){
+					Error_Handler();
+				}
+
+
+				float timeStamp = 0.05*readCount; //sample is 0.05 seconds difference between each read value
+				char uartTransmit[75];
+
+				if(filledOnce == 0 && readCount == 0 && readBlockNum == blockNum && readblockMemoryIndex >= blockMemoryIndex){
+					blocksRead = 3;
+					sprintf(uartTransmit, "\nNO SAVED DATA FOUND\n");
+					HAL_UART_Transmit(&huart1, uartTransmit, 22, 30000);
+
+				} else {
+					sprintf(uartTransmit, "\nTime: %f s-- Acceleration read: X:%d Y:%d Z:%d; Magnitude: %d\n", timeStamp,(int) spiX,(int) spiY,(int)spiZ, (int)spiMag);
+					HAL_UART_Transmit(&huart1, uartTransmit, 75, 30000);
+
+				}
+
+				readCount++;
+
+
+				readblockMemoryIndex += 2;
+
+				if(readblockMemoryIndex >= BLOCK_SIZE-8){ //last write in the block at address BlockSize-10
+					readblockMemoryIndex = 10; //first write in the block at address 10, if done from 0 to blocksize causes some issues at the borders of the block
+					readBlockNum += 4;
+					blocksRead++;
+				}
+
+
+				if(filledOnce == 0 && readBlockNum == blockNum && readblockMemoryIndex >= blockMemoryIndex){ //check to not write more than you have read
+					blocksRead = 3; //added this just to trigger next if statement to break out of reading
+				}
+
+				if(blocksRead == 3){ //provides 3 blocks of memory for each x y z and magnitude
+					readBlockNum = 0;
+					char endStr[40];
+					sprintf(endStr, "\nDATA TRANSMISSION FROM QSPI COMPLETE\n");
+					HAL_UART_Transmit(&huart1, endStr, 40, 30000);
+					readblockMemoryIndex = 10;
+					readBlockNum = 0;
+					blocksRead = 0;
+					readCount = 0;
+					qspiMode = 0; //change back to write
+					HAL_TIM_Base_Stop_IT(&htim4); //stop the timer
+				}
+
 	}
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == GPIO_PIN_13) {
 		HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+
+		//for qspi reading
+		if (HAL_TIM_Base_GetState(&htim4) == HAL_TIM_STATE_READY) { //start qspi timer if it was not yet to read ( since r/w share same timer)
+			HAL_TIM_Base_Start_IT(&htim4);
+			qspiMode = 1;
+		}
+		readCount = 0;
+		//
 	}
 }
+
 /* USER CODE END 4 */
 
 /**
@@ -744,6 +830,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+	  HAL_GPIO_WritePin(LED_GPIO_Port, GPIO_PIN_14, GPIO_PIN_SET);
 
   /* USER CODE END Error_Handler_Debug */
 }
