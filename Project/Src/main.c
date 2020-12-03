@@ -609,7 +609,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 		/*Debugging Purposes*/
 		sprintf(accelero_XYZ_buffer, "\nAcceleration: X:%d Y:%d Z:%d\n",(int) accelero_XYZ[0],(int) accelero_XYZ[1],(int)accelero_XYZ[2]);
-		HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
+//		HAL_UART_Transmit(&huart1, accelero_XYZ_buffer, 100, 30000);
 
 		/*Convert in terms of g*/
 		double dist_g = dist / 9.81;
@@ -617,7 +617,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 		/*Debugging if the peak values are correct in terms of g*/
 		sprintf(max_accelero_XYZ_buffer, "\nMagnitude: %d g\n", (int) dist);
 
-		HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
+//		HAL_UART_Transmit(&huart1, max_accelero_XYZ_buffer, 100, 30000);
 
 		/*Classify the magnitude of the difference*/
 		if (dist_g > 30) {
@@ -790,7 +790,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 					readBlockNum = 0;
 					blocksRead = 0;
 					readCount = 0;
-					qspiMode = 1; //change back to write
+					qspiMode = 0; //change back to write
 				}
 
 		}
